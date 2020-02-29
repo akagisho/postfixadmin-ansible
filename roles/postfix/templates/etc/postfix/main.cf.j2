@@ -1,0 +1,28 @@
+myhostname = {{ postfix_myhostname }}
+compatibility_level = 2
+command_directory = /usr/sbin
+daemon_directory = /usr/lib/postfix/sbin
+data_directory = /var/lib/postfix
+unknown_local_recipient_reject_code = 550
+mynetworks = 127.0.0.0/8
+smtpd_banner = $myhostname ESMTP Postfix
+inet_protocols = ipv4
+
+inet_interfaces = all
+mydestination = localhost
+
+virtual_mailbox_domains = proxy:mysql:/etc/postfix/mysql_virtual_domain.cf
+virtual_mailbox_base = /home/{{ postfix_mailuser_uname }}
+virtual_mailbox_maps = proxy:mysql:/etc/postfix/mysql_virtual_mailbox.cf
+virtual_minimum_uid = 100
+virtual_uid_maps = static:{{ postfix_mailuser_uid }}
+virtual_gid_maps = static:{{ postfix_mailuser_gid }}
+virtual_alias_maps = proxy:mysql:/etc/postfix/mysql_virtual_alias.cf
+
+#smtpd_sasl_type = dovecot
+#smtpd_sasl_path = private/auth
+#smtpd_sasl_auth_enable = yes
+#broken_sasl_auth_clients = yes
+#smtpd_sasl_authenticated_header = yes
+
+smtpd_recipient_restrictions = permit_mynetworks, permit_sasl_authenticated, reject_unauth_destination

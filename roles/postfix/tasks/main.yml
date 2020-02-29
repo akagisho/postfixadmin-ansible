@@ -1,0 +1,78 @@
+---
+- name: install packages
+  apt:
+    name:
+      - postfix
+      - postfix-mysql
+    update_cache: yes
+  notify: restart postfix
+
+- name: create group
+  group:
+    name: "{{ postfix_mailuser_gname }}"
+    gid: "{{ postfix_mailuser_gid }}"
+
+- name: create user
+  user:
+    name: "{{ postfix_mailuser_uname }}"
+    uid: "{{ postfix_mailuser_uid }}"
+    group: "{{ postfix_mailuser_gname }}"
+    home: "/home/{{ postfix_mailuser_uname }}"
+    shell: /bin/false
+    state: present
+
+- name: set facts for postfix_mailuser
+  set_fact:
+    "postfix_mailuser":
+      uid: "{{ postfix_mailuser_uid }}"
+      gid: "{{ postfix_mailuser_gid }}"
+      homedir: "/home/{{ postfix_mailuser_uname }}"
+
+- name: generate mysql user password
+  shell:
+    test -f /home/mailbox/.my.cnf
+    && (grep ^password /home/mailbox/.my.cnf | head -1 | cut -d'"' -f2)
+    || (cat /dev/urandom | tr -dc '[:alnum:]!#%&()*+,-./;<=>?@[]^_{|}~' | head -c 32)
+  changed_when: False
+  register: mysql_user_pass
+
+- name: set var
+  set_fact:
+    postfix_mysql_pass: "{{ mysql_user_pass.stdout }}"
+  changed_when: False
+
+- name: create mysql user
+  mysql_user:
+    name: "{{ postfix_mysql_user }}"
+    password: "{{ postfix_mysql_pass }}"
+    host: "127.0.0.1"
+    priv: "{{ postfix_mysql_db }}.*:SELECT"
+
+- name: create mysql user
+  mysql_user:
+    name: "{{ postfix_mysql_user }}"
+    password: "{{ postfix_mysql_pass }}"
+    host: "localhost"
+    priv: "{{ postfix_mysql_db }}.*:SELECT"
+
+- name: put .my.cnf
+  template:
+    src: home/mailbox/.my.cnf.j2
+    dest: /home/mailbox/.my.cnf
+    owner: "{{ postfix_mailuser_uname }}"
+    mode: 0600
+
+- name: set facts for mysql_mail
+  set_fact:
+    "mysql":
+      db: "{{ postfix_mysql_db }}"
+      user: "{{ postfix_mysql_user }}"
+      pass: "{{ postfix_mysql_pass }}"
+
+- name: put postfix config files
+  template:
+    src: "{{ item }}"
+    dest: "/etc/postfix/{{ item | basename | regex_replace('\\.j2$','') }}"
+  with_fileglob:
+     - ../templates/etc/postfix/*.j2
+  notify: restart postfix

@@ -1,0 +1,22 @@
+---
+- hosts: allinone
+  become: yes
+  roles:
+    - ubuntu18-common
+    - mysql-master
+    - postfix
+    - postfixadmin
+
+- hosts: master
+  become: yes
+  roles:
+    - ubuntu18-common
+    - mysql-master
+    - postfixadmin
+
+- hosts: node
+  become: yes
+  roles:
+    - ubuntu18-common
+    - mysql-slave
+    - postfix

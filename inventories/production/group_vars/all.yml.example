@@ -1,0 +1,8 @@
+---
+mysql_repl_master: 10.200.19.35
+mysql_repl_net: 10.200.19.0/255.255.255.0
+
+replicate_databases:
+  - postfix
+
+postfix_myhostname: mail.example.com

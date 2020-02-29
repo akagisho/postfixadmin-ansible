@@ -1,0 +1,100 @@
+---
+- name: install packages
+  apt:
+    name:
+      - mysql-server
+      - libmysqlclient-dev
+      - python3-pip
+      - python3-dev
+    update_cache: yes
+
+- name: install pip modules
+  pip:
+    name:
+      - mysql-python
+
+- name: generate mysql root password
+  shell:
+    test -f /root/.my.cnf && (grep ^password /root/.my.cnf | head -1 | cut -d'"' -f2)
+    || (cat /dev/urandom | tr -dc '[:alnum:]!#%&()*+,-./;<=>?@[]^_{|}~' | head -c 32)
+  changed_when: False
+  register: mysql_root_pass
+
+- name: set mysql root password
+  mysql_user:
+    name: root
+    host: localhost
+    password: "{{ mysql_root_pass.stdout }}"
+
+- name: put .my.cnf
+  template:
+    src: root/.my.cnf.j2
+    dest: /root/.my.cnf
+    mode: '0600'
+
+- name: set mysql root password
+  mysql_user:
+    name: root
+    host: "{{ item }}"
+    password: "{{ mysql_root_pass.stdout }}"
+  with_items:
+    - 127.0.0.1
+    - "{{ ansible_hostname }}"
+    - ::1
+
+- name: generate mysql replication user password
+  shell:
+    test -f /root/.mysqlreplpass && cat /root/.mysqlreplpass
+    || (cat /dev/urandom | tr -dc '[:alnum:]!#%&()*+,-./;<=>?@[]^_{|}~' | head -c 32 | tee /root/.mysqlreplpass && chmod 600 /root/.mysqlreplpass)
+  changed_when: False
+  register: mysql_repl_pass
+
+- name: create replication user
+  mysql_user:
+    name: "{{ mysql_repl_user }}"
+    password: "{{ mysql_repl_pass.stdout }}"
+    host: "{{ mysql_repl_net }}"
+    priv: '*.*:REPLICATION SLAVE,REPLICATION CLIENT'
+
+- name: fetch .mysqlreplpass
+  fetch:
+    src: /root/.mysqlreplpass
+    dest: tmp/.mysqlreplpass
+    flat: yes
+
+- name: generate server-id
+  shell: hostname -I | sed -e 's/ /\n/' | grep -v '^$' | tail -1 | awk -F. '{print $3 * 256 + $4}'
+  changed_when: False
+  register: mysql_server_id
+
+- name: put my.cnf
+  template:
+    src: "{{ item }}"
+    dest: "/etc/mysql/mysql.conf.d/{{ item | basename | regex_replace('\\.j2$','') }}"
+  with_fileglob:
+    - ../templates/etc/mysql/mysql.conf.d/*.j2
+  register: last_result
+
+- name: restart mysql
+  service:
+    name: mysql
+    state: restarted
+  when: last_result.changed
+
+- name: put mysqlrepldump.sh
+  copy:
+    src: usr/local/bin/mysqlrepldump.sh
+    dest: /usr/local/bin/mysqlrepldump.sh
+    mode: '0755'
+
+- name: export dump file
+  shell:
+    mysqlrepldump.sh | gzip > /tmp/mysqldump.sql.gz
+  changed_when: False
+
+- name: fetch dump file
+  fetch:
+    src: /tmp/mysqldump.sql.gz
+    dest: tmp/mysqldump.sql.gz
+    flat: yes
+  changed_when: False

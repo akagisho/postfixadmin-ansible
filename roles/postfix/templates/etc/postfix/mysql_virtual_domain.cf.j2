@@ -1,0 +1,5 @@
+hosts = 127.0.0.1
+user = {{ mysql.user }}
+password = {{ mysql.pass }}
+dbname = {{ mysql.db }}
+query = SELECT domain FROM domain WHERE domain='%s'

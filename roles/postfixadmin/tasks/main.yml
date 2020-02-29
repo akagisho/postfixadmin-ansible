@@ -1,0 +1,54 @@
+---
+- name: install packages
+  apt:
+    name:
+      - apache2
+      - php
+      - dbconfig-common
+      - wwwconfig-common
+      - php-mbstring
+      - php-mysql
+      - php-imap
+    update_cache: yes
+
+- name: download package
+  get_url:
+    url: https://downloads.sourceforge.net/project/postfixadmin/postfixadmin/postfixadmin-3.2/postfixadmin_3.2-1_all.deb
+    dest: /root/postfixadmin_3.2-1_all.deb
+
+- name: install postfixadmin
+  apt:
+    deb: /root/postfixadmin_3.2-1_all.deb
+
+- name: create database
+  mysql_db:
+    name: "{{ postfixadmin_mysql_db }}"
+
+- name: generate mysql user password
+  shell:
+    test -f /etc/postfixadmin/dbconfig.inc.php
+    && (grep '^$dbpass' /etc/postfixadmin/dbconfig.inc.php | tail -1 | cut -d"'" -f2)
+    || (cat /dev/urandom | tr -dc '[:alnum:]!#%&()*+,-./;<=>?@[]^_{|}~' | head -c 32)
+  changed_when: False
+  register: mysql_user_pass
+
+- name: set var
+  set_fact:
+    postfixadmin_mysql_pass: "{{ mysql_user_pass.stdout }}"
+  changed_when: False
+
+- name: create mysql user
+  mysql_user:
+    name: "{{ postfixadmin_mysql_user }}"
+    password: "{{ postfixadmin_mysql_pass }}"
+    host: "127.0.0.1"
+    priv: "{{ postfixadmin_mysql_db }}.*:ALL"
+
+- name: put config files
+  template:
+    src: "{{ item }}"
+    dest: "/etc/postfixadmin/{{ item | basename | regex_replace('\\.j2$','') }}"
+    group: www-data
+    mode: '0640'
+  with_fileglob:
+     - ../templates/etc/postfixadmin/*.j2
