@@ -1,0 +1,41 @@
+---
+- name: install packages
+  apt:
+    name:
+      - dovecot-core
+      - dovecot-imapd
+      - dovecot-mysql
+  notify: restart dovecot
+
+- name: set facts for postfix_mailuser
+  set_fact:
+    "postfix_mailuser":
+      uid: "{{ postfix_mailuser_uid }}"
+      gid: "{{ postfix_mailuser_gid }}"
+      homedir: "/home/{{ postfix_mailuser_uname }}"
+
+- name: generate mysql user password
+  shell: grep ^password /home/{{ postfix_mailuser_uname }}/.my.cnf | head -1 | cut -d'"' -f2
+  changed_when: False
+  register: mysql_user_pass
+
+- name: set var
+  set_fact:
+    postfix_mysql_pass: "{{ mysql_user_pass.stdout }}"
+  changed_when: False
+
+- name: put config files
+  template:
+    src: "{{ item }}"
+    dest: "/etc/dovecot/{{ item | basename | regex_replace('\\.j2$','') }}"
+  with_fileglob:
+     - ../templates/etc/dovecot/*.j2
+  notify: restart dovecot
+
+- name: put config files
+  template:
+    src: "{{ item }}"
+    dest: "/etc/dovecot/conf.d/{{ item | basename | regex_replace('\\.j2$','') }}"
+  with_fileglob:
+     - ../templates/etc/dovecot/conf.d/*.j2
+  notify: restart dovecot

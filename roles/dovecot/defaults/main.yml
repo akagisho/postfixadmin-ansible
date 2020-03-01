@@ -1,0 +1,8 @@
+---
+postfix_mysql_db: postfixadmin
+postfix_mysql_user: postfix
+
+postfix_mailuser_gname: mailbox
+postfix_mailuser_gid: 5000
+postfix_mailuser_uname: mailbox
+postfix_mailuser_uid: 5000

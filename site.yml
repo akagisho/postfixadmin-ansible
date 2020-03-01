@@ -6,6 +6,7 @@
     - mysql-master
     - postfix
     - postfixadmin
+    - dovecot
 
 - hosts: master
   become: yes
@@ -20,3 +21,4 @@
     - ubuntu18-common
     - mysql-slave
     - postfix
+    - dovecot
